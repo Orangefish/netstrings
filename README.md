@@ -98,9 +98,7 @@ data = nstream.read()
         b'03:abc,'  
     But low-level pack function produces netstrings without leading zeroes.    
 
--   If TCP byte stream terminates unexpectedly, NsStream.read() raises
-    exception.  
-    For example:
-        receiver got b'3:ab' and TCP connection was closed then
-        NsStreamUnexpectedEnd is raised
+-   TCP byte stream termination handled by NsStreamUnexpectedEnd exception.  
+    For example:  
+    The exception is raised when receiver gets b'3:ab' and TCP connection is closed.
 
