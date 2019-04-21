@@ -27,7 +27,7 @@ b''     ->  b'0:,'
 
 Example of code:
 
-```python    
+```python
 import netstrings as ns
 client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 client_sock.connect((SERVER_ADDR, SERVER_TCP_PORT))
@@ -37,16 +37,16 @@ nstream.write(req)
 resp_str = nstream.read()
 ```    
 
-NsStream uses as default packer/unpacker pack_str and unpack_str functions for  
-Pythons 3 str type( unicode string).  
-Module has low-level pack/unpack functions that accepts bytes and produce  
+NsStream uses as default packer/unpacker `pack_str` and `unpack_str` functions.  
+These functions works with Pythons 3 str type (unicode string).  
+Module also has low-level `pack` and `unpack` functions that accepts bytes and produce  
 netstrings. Using these two types packers/unpackers can cover many cases.  
 
 JSON works fine with defaults.  
     
-Example for JSON:
+Example for JSON:  
 
-```python    
+```python
 req = {'A':1, 'B':2, 'C':[3,4,5]}
 nstream.write(json.dumps(req))
 resp = json.loads(nstream.read())  
