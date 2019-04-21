@@ -87,15 +87,15 @@ data = nstream.read()
 
 -   Python 3.7 on Linux/Win10 is used for development/testing
 
--   It is assumed that TCP byte stream brings only contiguous netstrings
-    Valid bytestream: b'3:abc,3:123,'
-    Invalid bytestream: b'3:abc,J3:123,' the 'J' breaks it
+-   It is assumed that TCP byte stream brings only contiguous netstrings  
+    Valid bytestream: b'3:abc,3:123,'  
+    Invalid bytestream: b'3:abc,J3:123,' the 'J' breaks it  
     In case if TCP byte stream brings uncontiguos netstrings  NsMaiformed
     exception is raised.
 
 -   Low-level unpack function accept netstrings with leading ascii digits zeroes in len:
-    For example: 
-        b'03:abc,'       
+    For example:   
+        b'03:abc,'         
     But low-level pack function produces netstrings without leading zeroes.    
 
 -   If TCP byte stream terminates unexpectedly, NsStream.read() raises
