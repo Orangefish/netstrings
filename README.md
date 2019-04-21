@@ -93,9 +93,9 @@ data = nstream.read()
     In case if TCP byte stream brings uncontiguos netstrings  NsMaiformed
     exception is raised.
 
--   Low-level unpack function accept netstrings with leading ascii digits zeroes in len:
+-   Low-level unpack function accept netstrings with leading ascii digits zeroes in len:  
     For example:   
-        b'03:abc,'         
+        b'03:abc,'  
     But low-level pack function produces netstrings without leading zeroes.    
 
 -   If TCP byte stream terminates unexpectedly, NsStream.read() raises
