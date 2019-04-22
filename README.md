@@ -23,10 +23,6 @@ Package provides low-level functions for create and parse netstrings from/to `by
 b'12:hello world!,'
 >>> ns.unpack(b'12:hello world!,')
 (b'hello world!', b'')
->>> ns.pack_str('Ж')
-b'2:\xd0\x96,'
->>> ns.unpack_str(b'2:\xd0\x96,')
-('Ж', b'')
 >>>
 ```
 
