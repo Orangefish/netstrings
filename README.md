@@ -9,6 +9,7 @@ Netstrings definition (from draft-bernstein-netstrings-02):
 > digits giving the length of [string] in decimal. The ASCII digits are
 > <30> for 0, <31> for 1, and so on up through <39> for 9. 
 > ...
+
 > For example, the string "hello world!" is encoded as <31 32 3a 68
 > 65 6c 6c 6f 20 77 6f 72 6c 64 21 2c>, i.e., "12:hello world!,". The
 > empty string is encoded as "0:,".
