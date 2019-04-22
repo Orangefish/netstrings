@@ -1,4 +1,4 @@
-### Netstrings protocol implementation.
+### Netstrings protocol implementation for Python
 
 https://tools.ietf.org/html/draft-bernstein-netstrings-02
 
@@ -16,16 +16,34 @@ Definition (from draft-bernstein-netstrings-02):
 > empty string is encoded as "0:,".
 
 
-Examples of netstrings in Python's bytes type notation:  
+Package provides low-level functions for create and parse netstrings from/to `bytes`:
 
+```python
+>>> ns.pack(b'hello world!')
+b'12:hello world!,'
+>>> ns.unpack(b'12:hello world!,')
+(b'hello world!', b'')
+>>> ns.pack_str('Ж')
+b'2:\xd0\x96,'
+>>> ns.unpack_str(b'2:\xd0\x96,')
+('Ж', b'')
+>>>
 ```
-input   ->  resulting netstring 
-b'123'  ->  b'3:123,' 
-b''     ->  b'0:,'     
+
+And high-level API NsStream, whose instances wraps TCP socket and 
+has configurable packer/unpacker functions for any particular data.
+
+Python `str` packer/unpacker for 
+```python
+>>> ns.pack_str('Ж')
+b'2:\xd0\x96,'
+>>> ns.unpack_str(b'2:\xd0\x96,')
+('Ж', b'')
+>>>
 ```
+NsStream uses `pack_str` and `unpack_str` as default packer/unpacker. 
 
-
-Example of code:
+Example of using NsStream:
 
 ```python
 import netstrings as ns
@@ -37,13 +55,8 @@ nstream.write(req)
 resp_str = nstream.read()
 ```    
 
-NsStream uses as default packer/unpacker `pack_str` and `unpack_str` functions.  
-These functions works with Pythons 3 str type (unicode string).  
-Module also has low-level `pack` and `unpack` functions that accepts bytes and produce  
-netstrings. Using these two types packers/unpackers can cover many cases.  
-
 JSON works fine with defaults.  
-    
+  
 Example for JSON:  
 
 ```python
@@ -53,8 +66,7 @@ resp = json.loads(nstream.read())
 print('req == res:', req == resp)
 ```
 
-
-Example of customs packer/unpacker for Pickle 
+Example of customs packer/unpacker for Pickle: 
 
 ```python
 import netstrings as ns
