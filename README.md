@@ -33,7 +33,7 @@ b'2:\xd0\x96,'
 And high-level API NsStream, whose instances wraps TCP socket and 
 has configurable packer/unpacker functions for any particular data.
 
-Python `str` packer/unpacker for 
+Python packer/unpacker for  `str` type (unicode string): 
 ```python
 >>> ns.pack_str('Ж')
 b'2:\xd0\x96,'
@@ -55,7 +55,7 @@ nstream.write(req)
 resp_str = nstream.read()
 ```    
 
-JSON works fine with defaults.  
+Any type that can be serialized/deserialized to/from `str` works fine with defaults.
   
 Example for JSON:  
 
