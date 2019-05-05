@@ -2,15 +2,15 @@
 #!/usr/bin/env python3
 
 from functools import partial
+from io import BytesIO
 
-# Default maximum full netstring len.
+# Default maximum assembled netstring len.
 # ascii len digits  +  delemitter ':' + payload + terminator ','
 # packer and unpacker function can redifine it see max_len
 NS_MAX_LEN = 4096 
 
-# Default size of bytes for NsStream read single read  
-# it affect socket read operation in following way: 
-# sock.recv(STREAM_MAX_READ), 
+# Default size of bytes for NsStream single read operation 
+# fd.read(STREAM_MAX_READ), 
 # NsStream constructor can redifine it see max_read
 STREAM_MAX_READ = 8192 
 
@@ -35,7 +35,7 @@ class NsError(Exception):
     """
     pass
 
-class NsMaiformed(NsError):
+class NsMalformed(NsError):
     pass
 
 class NsStreamUnexpectedEnd(NsError):
@@ -62,7 +62,7 @@ def pack(x, max_len=NS_MAX_LEN):
 
     >>> pack(b'123456789AB', max_len=10)
     Traceback (most recent call last):
-    NsMaiformed: Too big netstring. len:15, max_len:10
+    NsMalformed: Too big netstring. len:15, max_len:10
 
     >>> unpack(pack(b'abc')) 
     (b'abc', b'')
@@ -74,7 +74,7 @@ def pack(x, max_len=NS_MAX_LEN):
     ascii_dig_len = bytes(str(len(x)), 'utf8')
     total_len = len(ascii_dig_len) + len(x) + 2
     if  total_len > max_len:
-            raise NsMaiformed('Too big netstring. len:{}, max_len:{}'.format(total_len, max_len))
+            raise NsMalformed('Too big netstring. len:{}, max_len:{}'.format(total_len, max_len))
     return ascii_dig_len + b':' + x + b','
 
 def unpack(x, max_len=NS_MAX_LEN):
@@ -102,7 +102,7 @@ def unpack(x, max_len=NS_MAX_LEN):
 
     >>> unpack(b'12:123456789ABC,', max_len=10)
     Traceback (most recent call last):
-    NsMaiformed: Too big netstring. len:12, max_len:10
+    NsMalformed: Too big netstring. len:12, max_len:10
 
     >>> unpack(pack(b'abc')) 
     (b'abc', b'')
@@ -116,11 +116,15 @@ def unpack(x, max_len=NS_MAX_LEN):
 
     >>> unpack(b'abc')
     Traceback (most recent call last):
-    NsMaiformed: Not found semicolon ":" as delimiter bytes:b'abc' HEX:61 62 63
+    NsMalformed: Not found semicolon ":" as delimiter. Buffer fragment (at begin):b'abc' HEX:61 62 63
 
     >>> unpack(b'V:abc,')
     Traceback (most recent call last):
-    NsMaiformed: Cannot parse as ascii digits. bytes:b'V:abc,' HEX:56 3A 61 62 63 2C
+    NsMalformed: Cannot parse ASCII digits giving the length of netstring. Buffer fragment (at begin):b'V:abc,' HEX:56 3A 61 62 63 2C
+
+    >>> unpack(b'3:abcd,')
+    Traceback (most recent call last):
+    NsMalformed: Not found comma "," as delimiter. Buffer fragment (at begin):b'3:abcd,' HEX:33 3A 61 62 63 64 2C
 
     """
     i =  x.find(b':')
@@ -128,31 +132,37 @@ def unpack(x, max_len=NS_MAX_LEN):
         try:
             payload_l = int(x[0:i]); 
         except ValueError as e:
-            raise NsMaiformed('Cannot parse as ascii digits. bytes:{} HEX:{}'.format( 
+            raise NsMalformed('Cannot parse ASCII digits giving the length of netstring. Buffer fragment (at begin):{} HEX:{}'.format( 
                             repr(x[0:8]),
                             hex_fragment(x[0:8])))
         if payload_l > max_len:
-            raise NsMaiformed('Too big netstring. len:{}, max_len:{}'.format(payload_l, max_len))
+            raise NsMalformed('Too big netstring. len:{}, max_len:{}'.format(payload_l, max_len))
+        # payload always <=  payload_l
+        # because slice
         payload = x[i+1:i+1+payload_l]
         # also skip ',' 
         tail = x[i+2+payload_l:]
         # but check that ',' is present 
-        if payload_l == len(payload) and x[i+1+payload_l:i+2+payload_l] == b',':  
+        comma = x[i+1+payload_l:i+2+payload_l]
+        if payload_l == len(payload) and comma == b',':  
             return (payload, tail)
-        elif len(x) > max_len:
-            raise NsMaiformed('Too big netstring. len:{}, max_len:{}'.format(len(x), max_len))
+        elif payload_l == len(payload) and len(comma) == 1 and comma != b',':
+            raise NsMalformed('Not found comma "," as delimiter. Buffer fragment (at begin):{} HEX:{}'.format(
+                            repr(x[0:8]),
+                            hex_fragment(x[0:8])))
         else: 
-            # not all bytes arrived yet
-            return (None, x)
-    elif len(x) == 0:            
-            # not all bytes arrived yet
-            return (None, x)
-    elif len(x) < max_len and x.isdigit():
-            # not all bytes arrived yet
+            # we here if not all bytes arrived yet
+            #   len(payload) < payload_l
+            #   or 
+            #   payload_l == len(payload) and comma == b'' (comma not arrived)
             return (None, x)
     else:
-        raise NsMaiformed('Not found semicolon ":" as delimiter. bytes:{} HEX:{}'.format( 
-                    repr(x[0:8]), 
+        if len(x) == 0 or (len(x) <= max_len and x.isdigit()):
+            # not all bytes arrived yet
+            return (None, x)
+        else:
+            raise NsMalformed('Not found semicolon ":" as delimiter. Buffer fragment (at begin):{} HEX:{}'.format( 
+                        repr(x[0:8]), 
                     hex_fragment(x[0:8])))
 
 def pack_str(x, errors='strict', max_len=NS_MAX_LEN):
@@ -239,7 +249,7 @@ def unpack_str(x, errors='strict', max_len=NS_MAX_LEN):
 
     >>> unpack_str(b'abc')
     Traceback (most recent call last):
-    NsMaiformed: Not found semicolon ":" as delimiter bytes:b'abc' HEX:61 62 63
+    NsMalformed: Not found semicolon ":" as delimiter. Buffer fragment (at begin):b'abc' HEX:61 62 63
     
     """
     (payload, tail) = unpack(x, max_len=max_len)
@@ -258,8 +268,10 @@ class NsStream:
 
     Attributes
     ----------
-    sock : socket 
-        TCP socket, initialized by constructor.
+    fd : file-like object in binary mode
+        opened file in binary mode: open()
+        io Stream: io.BytesIO()
+        file-like object form opened TCP socket: sosk.makefile('rwb', buffering=0) 
     pack_f
         Packer function, initialized by constructor.
         It must be single argument function  
@@ -271,40 +283,71 @@ class NsStream:
             - in case of success (any_object, rest_of_buff_bytes) 
             - in case of failure (None, buff) 
     max_read : int
-        Default size of bytes for NsStream single read operation from socket, 
+        Default size of bytes for NsStream single read operation from `fd`, 
         is initialized by constructor.
     buff : bytes
-        Internal buffer to store intermediate byres that already was received
-        from `sock` but not yet processed.
+        Internal buffer to store intermediate bytes that already was 
+        readed/received from `fd` but not processed yet.
 
     Methods
     -------
     write(pyload) 
-        Converts payload to netstring using `pack_f` and sends over TCP.
+        Converts payload to netstring using `pack_f` and writes it to file-like
+        objet `fd`.
     read()
-        Parse internall buffer as netstring, unpack it using `unpack_f` and returns to
-        caller.
+        Reads data form file-like object `fd` into internal buffer, parses it as netstring, 
+        unpacks it using `unpack_f` and returns to caller.
     __iter__()
         Python's Iterator protocol support.
     __next__()
         Python's Iterator protocol support.
 
+    Basic test
+    >>> b_stream = BytesIO()
+    >>> ns_stream = NsStream(b_stream)
+    >>> req = 'Ж'*100
+    >>> req_ns_len = len(pack_str(req)) 
+    >>> wr_len = ns_stream.write(req)
+    >>> req_ns_len == wr_len
+    True
+    >>> b_stream.seek(0)
+    0
+    >>> resp = ns_stream.read() 
+    >>> req == resp
+    True
+
+    Exception test: NsStreamUnexpectedEnd
+    >>> b_stream = BytesIO()
+    >>> ns_stream = NsStream(b_stream)
+    >>> req = 'Ж'*100
+    >>> req_ns_len = len(pack_str(req)) 
+    >>> wr_len = ns_stream.write(req)
+    >>> req_ns_len == wr_len
+    True
+    >>> b_stream.seek(0)
+    0
+    >>> new_wr_len = b_stream.truncate(50)
+    >>> resp = ns_stream.read() 
+    Traceback (most recent call last):
+    NsStreamUnexpectedEnd: Unexpected end of byte stream. Buffer fragment (at begin):b'200:\xd0\x96\xd0\x96' HEX:32 30 30 3A D0 96 D0 96
+
     """
-    def __init__(self, sock, max_read=STREAM_MAX_READ, pack_f=pack_str_strict, unpack_f=unpack_str_strict):
-        self.sock = sock
+    def __init__(self, fd, max_read=STREAM_MAX_READ, pack_f=pack_str_strict, unpack_f=unpack_str_strict):
+        self.fd = fd 
         self.pack_f = pack_f
         self.unpack_f = unpack_f
         self.max_read = max_read 
         self.buff = b''
-        self.closed_rx = False
-        self.processed_rx = False
+        self.eof = False
+        self.buff_processed = False
 
     def write(self, payload):
-        """Converts payload to netstring and it sends over TCP.
+        """Converts payload to netstring using `pack_f` and write it to file-like
+        objet `fd`.
 
         Blocking call.
         Pack data to netstring, using configurable packer, `pack_f`.
-        Sends netstring over TCP socket.
+        Writes netstring to file-like obhect `fd`.
 
         Parameters
         ----------
@@ -312,14 +355,14 @@ class NsStream:
             Object to be packed.
     
         """
-        return self.sock.sendall(self.pack_f(payload))
+        return self.fd.write(self.pack_f(payload))
 
     def read(self):
-        """Parse internall buffer as netstring, unpack it and returns to
-        caller.
+        """Reads data form file-like object `fd` into internal buffer, parses it as netstring, 
+        unpacks it using `unpack_f` and returns to caller.
 
         Blocking call.
-        Fill in internal buffer from TCP for up to `max_read` bytes.
+        Fills in internal buffer from `fd` for up to `max_read` bytes.
 
         Parameters
         ----------
@@ -327,23 +370,24 @@ class NsStream:
         Returns
         -------
         None 
-            Underlying TCP connection is closed in rx direction and internal buffer is empty.
+            Underlying `fd` object reach EOF or when remote socket is closed and internal buffer is empty.
         Any object
             The result of parsing netstring and unpacking it by `unpack_f`. 
             
         """
-        if not self.processed_rx:
+        if not self.buff_processed:
             (payload, tail) = self.unpack_f(self.buff)
             if payload is not None:
                 self.buff = tail
                 return payload
-            elif not self.closed_rx:
+            elif not self.eof:
                 # not all bytes arrived yet
-                while not self.closed_rx:
-                    raw_b = self.sock.recv(self.max_read)
-                    # was closed
+                while not self.eof:
+                    raw_b = self.fd.read(self.max_read)
+                    # socket was closed
+                    # file or stream  reach EOF
                     if raw_b == b'':
-                        self.closed_rx = True
+                        self.eof = True
                     self.buff += raw_b
                     (payload, tail) = self.unpack_f(self.buff)
                     if payload is not None:
@@ -351,12 +395,12 @@ class NsStream:
                         return payload
             # we reach this point 
             # if we cannot parse buff
-            # and closed_rx 
+            # and eof 
             if self.buff == b'':
-                self.processed_rx = True
+                self.buff_processed = True
                 return None
             else: 
-                raise NsStreamUnexpectedEnd('Uexpected end of byte stream. bytes:{} HEX:{}'.format(
+                raise NsStreamUnexpectedEnd('Unexpected end of byte stream. Buffer fragment (at begin):{} HEX:{}'.format(
                             repr(self.buff[0:8]),
                                 hex_fragment(self.buff[0:8])))
         else:

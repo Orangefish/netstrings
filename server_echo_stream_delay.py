@@ -91,6 +91,15 @@ if __name__ == '__main__':
 
     # Preparing server Socket
     server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    #
+    # The SO_REUSEADDR flag tells the kernel to reuse a local socket in
+    # TIME_WAIT state, without waiting for its natural timeout to expire. 
+    # 
+    # without this flag got folliwing error when restert server and some sockets still
+    # not closed:
+    # [Errno 98] Address already in use 
+    # 
+    server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server_sock.bind((SERVER_ADDR, SERVER_TCP_PORT))
     server_sock.listen(MAX_BACKLOG)
     local_addr = server_sock.getsockname()

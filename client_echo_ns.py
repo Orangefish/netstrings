@@ -32,8 +32,10 @@ if __name__ == '__main__':
                     local_addr[0], local_addr[1],
                     remote_addr[0], remote_addr[1])
                     )
+
+    fd = client_sock.makefile('rwb', buffering=0)
     # default NsStream, pack/unpack: pack_str/unpack_str
-    nstream = ns.NsStream(client_sock)    
+    nstream = ns.NsStream(fd)    
     for i in range(1, CLIENT_REQ_NUM+1):
         req = 'Test! From:{}, PID:{}, {}/{}'.format(local_addr, PID, i, CLIENT_REQ_NUM)
         print('req:', '(len:{})'.format(len(req)))
@@ -47,7 +49,7 @@ if __name__ == '__main__':
         time.sleep(CLIENT_WAIT)
 
     # JSON example 
-    req = {'A':1, 'B':2, 'C':[3,4,5]}
+    req = {'A':1, 'B':'BBB', 'C':[3,4,5]}
     print('req: {!r}'.format(req))
     nstream.write(json.dumps(req))
     resp = json.loads(nstream.read())  

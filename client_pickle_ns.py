@@ -26,13 +26,15 @@ if __name__ == '__main__':
                     local_addr[0], local_addr[1],
                     remote_addr[0], remote_addr[1])
                     )
+
+    fd = client_sock.makefile('rwb', buffering=0)
     # NsStream wiht custom pack/unpack
-    nstream = ns.NsStream(client_sock, 
+    nstream = ns.NsStream(fd,
             pack_f=make_pickle_packer(),
             unpack_f=make_pickle_unpacker())    
     L = [1,2,3]
-    D = {'A':1, 'B':2, 'C':3}
-    S = set(['AAA', 'BBB', 'CCC'])
+    D = {'A':1, 'B':None, 'C':True}
+    S = set(['AAA', 'BBB', 'CCC', ('1', 2)])
     nstream.write(L)
     time.sleep(1)
     nstream.write(D)

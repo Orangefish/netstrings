@@ -15,80 +15,94 @@ Netstrings definition (from draft-bernstein-netstrings-02):
 > empty string is encoded as "0:,".
 
 
-Package provides low-level functions for create and parse netstrings from/to `bytes`:
+Package provides low-level functions for create and parse netstrings 
+for Python's `bytes` and `str`:
 
 ```python
+import netstrings as ns
 >>> ns.pack(b'hello world!')
 b'12:hello world!,'
 >>> ns.unpack(b'12:hello world!,')
 (b'hello world!', b'')
 >>>
-```
-
-And high-level API NsStream, whose instances wraps TCP socket and 
-has configurable packer/unpacker functions for any particular data.
-
-Python packer/unpacker for  `str` type (unicode string): 
-```python
 >>> ns.pack_str('Ж')
 b'2:\xd0\x96,'
 >>> ns.unpack_str(b'2:\xd0\x96,')
 ('Ж', b'')
 >>>
-```
-NsStream uses `pack_str` and `unpack_str` as default packer/unpacker. 
 
-Example of using NsStream:
+```
+
+And high-level API `NsStream`, whose instances wraps any file-like object 
+(TCP socket/binary file/binary IO Stream) and has configurable packer/unpacker 
+functions for any particular data.
+`NsStream` uses `pack_str` and `unpack_str` as default packer/unpacker.  
+
+(For full example see `client_demo_ns.py` this clients works with echo-server `server_echo_stream_delay.py`)  
+
+Example 1.
 
 ```python
+import socket
 import netstrings as ns
+SERVER_ADDR = '127.0.0.1'
+SERVER_TCP_PORT = 9000 
 client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 client_sock.connect((SERVER_ADDR, SERVER_TCP_PORT))
-nstream = ns.NsStream(client_sock)    
-req_str = 'Hello world!'
+# Make file-like object form socket.
+fd = client_sock.makefile('rwb', buffering=0)
+nstream = ns.NsStream(fd)    
+req = 'Hello world!'
 nstream.write(req)
-resp_str = nstream.read()
+resp = nstream.read()
+print('req == res:', req == resp)
 ```    
 
-Any type that can be serialized/deserialized to/from `str` works fine with defaults.
+Any type that can be serialized/deserialized to/from `str` works fine with defaults.  
   
-Example for JSON:  
+Example 2. (continue of Ex. 1)  for JSON:  
 
 ```python
+import json
 req = {'A':1, 'B':2, 'C':[3,4,5]}
 nstream.write(json.dumps(req))
 resp = json.loads(nstream.read())  
 print('req == res:', req == resp)
 ```
 
-Example of customs packer/unpacker for Pickle: 
+Example 3. (continue of Ex. 1,2)  for custom pickle packer/unpacker:  
 
 ```python
-import netstrings as ns
+import pickle
 NS_PICKLE_MAX = 16384
+
 def make_pickle_packer(max_len=NS_PICKLE_MAX):
-    def pickle_packer(x):
+    def pack_pickle(x):
         return ns.pack(pickle.dumps(x), max_len=max_len)
-return pickle_packer
+    return pack_pickle
 
 def make_pickle_unpacker(max_len=NS_PICKLE_MAX):
-    def pickle_unpacker(x):
+    def unpack_pickle(x):
         (payload, tail) = ns.unpack(x, max_len=max_len)
         if payload is not None:
             payload_obj = pickle.loads(payload) 
             return (payload_obj, tail)
         else:
             return (None, x)
-return pickle_unpacker
+    return unpack_pickle
 
-nstream = ns.NsStream(self.request,
+
+nstream = ns.NsStream(fd,
     pack_f=make_pickle_packer(),
     unpack_f=make_pickle_unpacker())    
-D = {'A':1, 'B':2, 'C':3}
+req = {'A':1, 'B':None, 'C':3}
 # now any picklable object can be transported over NsStream 
-nstream.write(D)
-data = nstream.read()
+nstream.write(req)
+resp = nstream.read()
+print('req == res:', req == resp)
 ```
+
+Additional examples for pickle in `server_pickle_ns.py` and `client_pickle_ns.py`  
 
 ### Some implementation details
 
@@ -97,15 +111,17 @@ data = nstream.read()
 -   It is assumed that TCP byte stream brings only contiguous netstrings  
     Valid bytestream: b'3:abc,3:123,'  
     Invalid bytestream: b'3:abc,J3:123,' the 'J' breaks it  
-    In case if TCP byte stream brings uncontiguos netstrings  NsMaiformed
+    In case if TCP byte stream brings uncontiguos netstrings then `NsMailformed`
     exception is raised.
 
--   Low-level unpack function accept netstrings with leading ascii digits zeroes in len:  
+-   Low-level unpack function accept netstrings with leading ASCII digits zeroes in len:  
     For example:   
         b'03:abc,'  
-    But low-level pack function produces netstrings without leading zeroes.    
+    But low-level pack function always produces netstrings without leading zeroes.    
 
--   TCP byte stream termination handled by NsStreamUnexpectedEnd exception.  
+-   Byte stream termination handled by `NsStreamUnexpectedEnd` exception.  
     For example:  
-    The exception is raised when receiver gets b'3:ab' and TCP connection is closed.
+    The exception is raised when receiver gets b'3:ab' and TCP connection is closed or file/stream is corrupted.  
 
+-  `NsMalformed` exception is raised when low-level functions called with malformed/corrupted
+    netstrings or when length of netstrings exceed `max_len`  
