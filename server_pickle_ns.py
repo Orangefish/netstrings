@@ -67,7 +67,7 @@ class TCPRequestHandler(socketserver.BaseRequestHandler):
                     self.client_address[0], 
                     self.client_address[1], 
                     data))
-        except (ns.NsMaiformed, ns.NsStreamUnexpectedEnd) as e:
+        except (ns.NsMalformed, ns.NsStreamUnexpectedEnd) as e:
             raise e
     
 

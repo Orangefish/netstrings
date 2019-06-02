@@ -407,17 +407,20 @@ class NsStream:
             return None
 
     def __iter__(self):
+        # This breaks best practice regarding
+        # distinct iterators over iterable.
+        # But it is not possible/very hard to have distinct iterators over
+        # near infinite sequence (TCP stream/file much bigger than memory).
+        # So we have only one global itaration context over given NsStream.
         return self
     
     def __next__(self):
-        consumed = False
-        while not consumed:
-            res = self.read()  
-            if res is not None:
-                return res 
-            else:
-                consumed = True
-        raise StopIteration
+        # iterator is iterable
+        res = self.read()  
+        if res is not None:
+            return res 
+        else:
+            raise StopIteration
 
 if __name__ == '__main__':
     import doctest
